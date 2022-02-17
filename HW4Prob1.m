@@ -15,7 +15,8 @@ nd         = length(tmp); %how many points do we have?
 tmp        = csvread('faults.csv',1);
 faults_lon = tmp(:,1);
 faults_lat = tmp(:,2);
-
+faults_x =   tmp(:,1); %
+faults_y =   tmp(:,2);
 tmp        = csvread('coasts.csv',1);
 coast_lon  = tmp(:,1);
 coast_lat  = tmp(:,2);
