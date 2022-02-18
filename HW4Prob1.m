@@ -9,7 +9,6 @@ GPS_x      = tmp(:,3); %Easting (in meters, UTM zone 11)
 GPS_y      = tmp(:,4); %Northing (in meters, UTM zone 11)
 GPS_UE     = tmp(:,5); %Displacement rate in the east direction, mm/yr 
 GPS_UN     = tmp(:,6); %Displacement rate in the north direction, mm/yr
-nd         = length(tmp); %how many points do we have?
 
 %faults and coastlines for plotting.
 tmp        = csvread('faults.csv',1);
@@ -33,11 +32,12 @@ GPS_UE     = GPS_UE/1000;  %convert to meters/yr, since our units of distance ar
 GPS_UN     = GPS_UN/1000;
 
 %%%Now we are going to make a grid of points, going from a range of x and y
-%%%values that contains most of the region.  You can change these numbers
-%%%if you'd like!
-dx=10e3; %grid spacing in meters (could have a dy and dx but we are making them the same)
-gridy = min(GPS_y):dx:max(GPS_y); %this makes a vector of y values, spaced by dx
-gridx = min(GPS_x):dx:max(GPS_x);
+%%%values that contains most of the region.  You will change the grid
+%%%spacing and smoothing!
+
+dx=30e3; %grid spacing in meters (could have a dy and dx but we are making them the same)
+gridx = min(GPS_x):dx:max(GPS_x); %this makes a vector of x values, spaced by dx
+gridy = min(GPS_y):dx:max(GPS_y);
 
 %how many x and y points do we have?  We use that later.
 nx=size(gridx,2); 
@@ -49,9 +49,9 @@ ny=size(gridy,2);
 %smoothing distance - this allows us to use points that are not just within
 %our single grid box, while still making the ones in the box more
 %"important".  Change this up!
-alpha = 50e3; %in meters
+alpha = 10e3; %in meters
 
-m = zeros(6,nx*ny); %initialize an empty model vector 
+m     = zeros(6,nx*ny); %initialize an empty model vector 
 count = zeros(size(x)); %keep a vector of how many points we end up using for each box
 
 for i=1:nx*ny %loop over all the nx*np boxes
@@ -76,31 +76,43 @@ for i=1:nx*ny %loop over all the nx*np boxes
     if(rcond(G'*sig*G)<eps) %this means the matrix is not invertible, probably because you have < 6 points or points that are very close together
         m(:,i)=NaN;
     else
-        Gg       = inv(G'*sig*G)*G'*sig;
+        Gg       = inv(G'*sig*G)*G'*sig; %this is the least squares inversion formula, with weights.
         m(:,i)   = Gg*d;
         count(i) = nd;
     end
 end
 
 %now we want to pull out the extension and shear components
-volumetric = nan(size(x));
+dilatation = nan(size(x));
 shear      = nan(size(x));
 
 for i=1:nx*ny
     L  = [m(3,i) m(4,i); m(5,i) m(6,i)];
     if(~isnan(L))
-        symm = 0.5*(L + L');
-        asym  = 0.5*(L - L');
+        E = 0.5*(L + L');
+        W  = 0.5*(L - L');
         
-        volumetric(i) = trace(symm);
-        shear(i)      = sqrt(symm(1,2)^2+(symm(1,1)-symm(2,2))^2/4);    
+        dilatation(i) = trace(E);
+        shear(i)      = E(1,1)-E(2,2);    
     end
 end
   
 figure
-pcolor(x,y,volumetric)
+pcolor(x,y,dilatation)
 hold on
 shading flat
 plot(faults_x,faults_y,'r')
 plot(GPS_x,GPS_y,'k.')
 caxis([-1e-7 1e-7])
+colorbar
+title('dilatation')
+
+figure
+pcolor(x,y,shear)
+hold on
+shading flat
+plot(faults_x,faults_y,'r')
+plot(GPS_x,GPS_y,'k.')
+caxis([0 2e-7])
+colorbar
+title('maximum shear strain')
